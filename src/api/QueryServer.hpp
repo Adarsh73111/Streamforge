@@ -13,11 +13,14 @@
 
 class QueryServer {
 public:
-    QueryServer(StreamProcessor& processor, const std::string& region, int port = 9090)
-        : processor_(processor), port_(port) {
-        Aws::Client::ClientConfiguration cfg;
-        cfg.region = region;
-        dynamo_ = std::make_unique<Aws::DynamoDB::DynamoDBClient>(cfg);
+    QueryServer(StreamProcessor& processor, const std::string& region,
+                int port = 9090, bool local_mode = false)
+        : processor_(processor), port_(port), local_mode_(local_mode) {
+        if (!local_mode_) {
+            Aws::Client::ClientConfiguration cfg;
+            cfg.region = region;
+            dynamo_ = std::make_unique<Aws::DynamoDB::DynamoDBClient>(cfg);
+        }
     }
 
     void start_async() {
@@ -30,7 +33,6 @@ private:
         crow::SimpleApp app;
         app.loglevel(crow::LogLevel::Warning);
 
-        // GET /health
         CROW_ROUTE(app, "/health")
         ([this]() {
             std::ostringstream ss;
@@ -45,7 +47,6 @@ private:
             return res;
         });
 
-        // GET /metrics  (Prometheus format)
         CROW_ROUTE(app, "/metrics")
         ([this]() {
             std::ostringstream ss;
@@ -63,14 +64,18 @@ private:
             return res;
         });
 
-        // GET /anomalies  — last 20 from DynamoDB AnomalyLog
         CROW_ROUTE(app, "/anomalies")
         ([this]() {
+            if (local_mode_) {
+                auto res = crow::response(200,
+                    "{\"anomalies\":[],\"note\":\"local mode — DynamoDB disabled\"}");
+                res.set_header("Content-Type", "application/json");
+                return res;
+            }
             Aws::DynamoDB::Model::ScanRequest req;
             req.SetTableName("AnomalyLog");
             req.SetLimit(20);
             auto out = dynamo_->Scan(req);
-
             std::ostringstream ss;
             ss << "{\"anomalies\":[";
             if (out.IsSuccess()) {
@@ -94,12 +99,18 @@ private:
             return res;
         });
 
-        // GET /query?metric=latency  — rolling stats from StreamMetrics
         CROW_ROUTE(app, "/query")
         ([this](const crow::request& req) {
+            if (local_mode_) {
+                auto res = crow::response(200,
+                    "{\"note\":\"local mode — DynamoDB disabled\","
+                    "\"events_processed\":" +
+                    std::to_string(processor_.events_processed()) + "}");
+                res.set_header("Content-Type", "application/json");
+                return res;
+            }
             std::string metric = req.url_params.get("metric") ?
                                  req.url_params.get("metric") : "latency";
-
             Aws::DynamoDB::Model::QueryRequest qreq;
             qreq.SetTableName("StreamMetrics");
             qreq.SetKeyConditionExpression("metric_name = :m");
@@ -107,9 +118,7 @@ private:
                 ":m", Aws::DynamoDB::Model::AttributeValue(metric));
             qreq.SetScanIndexForward(false);
             qreq.SetLimit(10);
-
             auto out = dynamo_->Query(qreq);
-
             std::ostringstream ss;
             ss << "{\"metric\":\"" << metric << "\",\"results\":[";
             if (out.IsSuccess()) {
@@ -148,6 +157,7 @@ private:
 
     StreamProcessor& processor_;
     int port_;
+    bool local_mode_;
     std::unique_ptr<Aws::DynamoDB::DynamoDBClient> dynamo_;
     std::thread server_thread_;
 };

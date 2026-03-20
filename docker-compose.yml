@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  streamforge:
+    build: .
+    command: ["/usr/local/bin/streamforge", "--local"]
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
