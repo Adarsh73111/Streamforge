@@ -1,0 +1,45 @@
+name: StreamForge CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update -q
+        sudo apt-get install -y \
+          build-essential cmake \
+          libssl-dev libcurl4-openssl-dev \
+          zlib1g-dev
+
+    - name: Build AI + Pipeline tests (no AWS SDK needed)
+      run: |
+        cd $GITHUB_WORKSPACE
+        g++ -std=c++17 -O2 -Isrc \
+            tests/test_ringbuffer.cpp -o build_test_rb -lpthread
+        g++ -std=c++17 -O2 -Isrc \
+            tests/test_pipeline.cpp  -o build_test_pipeline -lpthread
+        g++ -std=c++17 -O2 -Isrc \
+            tests/test_anomaly.cpp   -o build_test_anomaly  -lpthread
+
+    - name: Run RingBuffer tests
+      run: ./build_test_rb
+
+    - name: Run Pipeline tests
+      run: ./build_test_pipeline
+
+    - name: Run Anomaly Detection tests
+      run: ./build_test_anomaly
+
+    - name: Verify all tests passed
+      run: echo "All StreamForge tests passed"
