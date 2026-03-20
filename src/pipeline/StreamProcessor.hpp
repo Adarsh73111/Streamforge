@@ -108,13 +108,13 @@ private:
         return json.substr(q1 + 1, q2 - q1 - 1);
     }
 
-    RingBuffer<Event, 1024> buffer_;
-    ThreadPool              pool_;
-    AnomalyDetector         detector_;
-    EventHandler            handler_;
-    AnomalyHandler          anomaly_handler_;
-    std::thread             dispatcher_;
-    std::atomic<bool>       running_;
+    RingBuffer<Event, 1024>  buffer_;
+    ThreadPool               pool_;
+    AnomalyDetector          detector_;
+    EventHandler             handler_;
+    AnomalyHandler           anomaly_handler_;
+    std::thread              dispatcher_;
+    std::atomic<bool>        running_;
     std::atomic<std::size_t> events_processed_;
     std::atomic<std::size_t> events_dropped_;
     std::atomic<std::size_t> anomalies_detected_;
