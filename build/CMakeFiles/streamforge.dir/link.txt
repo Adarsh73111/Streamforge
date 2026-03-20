@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/streamforge.dir/src/main.cpp.o -o streamforge  /usr/lib64/libssl.so /usr/lib64/libcrypto.so 

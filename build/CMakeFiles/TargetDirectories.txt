@@ -1,6 +1,0 @@
-/home/ec2-user/streamforge/build/CMakeFiles/streamforge.dir
-/home/ec2-user/streamforge/build/CMakeFiles/test_rb.dir
-/home/ec2-user/streamforge/build/CMakeFiles/test_pipeline.dir
-/home/ec2-user/streamforge/build/CMakeFiles/test.dir
-/home/ec2-user/streamforge/build/CMakeFiles/edit_cache.dir
-/home/ec2-user/streamforge/build/CMakeFiles/rebuild_cache.dir
