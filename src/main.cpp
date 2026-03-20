@@ -3,6 +3,7 @@
 #include "aws/S3Uploader.hpp"
 #include "aws/DynamoWriter.hpp"
 #include "aws/SNSNotifier.hpp"
+#include "api/QueryServer.hpp"
 #include <aws/core/Aws.h>
 #include <iostream>
 #include <csignal>
@@ -20,32 +21,28 @@ int main() {
     std::signal(SIGINT,  signal_handler);
     std::signal(SIGTERM, signal_handler);
 
-    // Init AWS SDK
     Aws::SDKOptions options;
     Aws::InitAPI(options);
 
     std::cout << "========================================" << std::endl;
-    std::cout << "   StreamForge v0.2 — Starting up       " << std::endl;
+    std::cout << "   StreamForge v0.3 — Starting up       " << std::endl;
     std::cout << "========================================" << std::endl;
 
-    const std::string REGION   = "ap-south-1";
+    const std::string REGION    = "ap-south-1";
     const std::string S3_BUCKET = "streamforge-events-adarsh";
-    const std::string SNS_ARN  =
+    const std::string SNS_ARN   =
         "arn:aws:sns:ap-south-1:318370043798:StreamForgeAlerts";
 
-    // AWS clients
     S3Uploader   s3(S3_BUCKET, REGION);
     DynamoWriter dynamo(REGION);
     SNSNotifier  sns(SNS_ARN, REGION);
 
-    // Event batch buffer for S3 archiving
     std::vector<std::string> event_batch;
     std::mutex batch_mutex;
     const int BATCH_SIZE = 20;
 
     StreamProcessor processor(4);
 
-    // Normal event handler — batch for S3
     processor.set_handler([&](const Event& e) {
         std::string record = "{\"source\":\"" + e.source +
             "\",\"metric\":\"" + e.metric_name +
@@ -59,34 +56,33 @@ int main() {
         }
     });
 
-    // Anomaly handler — DynamoDB + SNS
     processor.set_anomaly_handler([&](const AnomalyEvent& ae) {
         const auto& e = ae.event;
         const auto& r = ae.result;
-
         std::string votes =
             std::string(r.zscore_vote ? "Z" : "-") +
             std::string(r.ewma_vote   ? "E" : "-") +
             std::string(r.forest_vote ? "F" : "-");
-
-        // Write to DynamoDB AnomalyLog
         dynamo.write_anomaly(e.metric_name, e.value, r.score, votes);
-
-        // Fire SNS email alert
-        sns.notify(e.metric_name, e.value, r.score,
-                   votes, r.z_value, r.ewma_value);
+        sns.notify(e.metric_name, e.value, r.score, votes, r.z_value, r.ewma_value);
     });
 
     processor.start();
+
+    // Start Query API on port 9090
+    QueryServer query_server(processor, REGION, 9090);
+    query_server.start_async();
+
     std::cout << "Pipeline started — AWS integration active" << std::endl;
-    std::cout << "  S3 bucket:  " << S3_BUCKET  << std::endl;
-    std::cout << "  DynamoDB:   StreamMetrics + AnomalyLog" << std::endl;
-    std::cout << "  SNS topic:  StreamForgeAlerts" << std::endl;
+    std::cout << "  Ingestion:  http://0.0.0.0:8080/ingest"  << std::endl;
+    std::cout << "  Query API:  http://0.0.0.0:9090/query"   << std::endl;
+    std::cout << "  Health:     http://0.0.0.0:9090/health"  << std::endl;
+    std::cout << "  Metrics:    http://0.0.0.0:9090/metrics" << std::endl;
+    std::cout << "  Anomalies:  http://0.0.0.0:9090/anomalies" << std::endl;
 
     HttpServer server(processor, 8080);
     server.start();
 
-    // Flush remaining batch on shutdown
     {
         std::lock_guard<std::mutex> lock(batch_mutex);
         if (!event_batch.empty()) {
