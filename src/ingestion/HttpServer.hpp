@@ -3,6 +3,7 @@
 #include "../pipeline/StreamProcessor.hpp"
 #include <string>
 #include <iostream>
+#include <mutex>
 
 class HttpServer {
 public:
@@ -12,13 +13,12 @@ public:
     void start() {
         CROW_ROUTE(app_, "/ingest").methods(crow::HTTPMethod::POST)
         ([this](const crow::request& req) {
-            if (req.body.empty()) {
+            if (req.body.empty())
                 return crow::response(400, "Empty body");
-            }
+            std::lock_guard<std::mutex> lock(ingest_mutex_);
             bool ok = processor_.ingest(req.body);
-            if (!ok) {
+            if (!ok)
                 return crow::response(429, "Buffer full — backpressure");
-            }
             return crow::response(202, "Accepted");
         });
 
@@ -50,13 +50,14 @@ public:
 
         std::cout << "StreamForge ingestion server starting on port "
                   << port_ << std::endl;
-        app_.port(port_).multithreaded().run();
+        app_.port(port_).concurrency(2).run();
     }
 
     void stop() { app_.stop(); }
 
 private:
-    crow::SimpleApp app_;
+    crow::SimpleApp  app_;
     StreamProcessor& processor_;
-    uint16_t port_;
+    uint16_t         port_;
+    std::mutex       ingest_mutex_;
 };

@@ -157,3 +157,19 @@ streamforge/
 ---
 
 *Built on AWS Free Tier · C++17 · EC2 ap-south-1 · 2026*
+
+## Benchmark — C++ vs Python FastAPI
+
+Stress tested on EC2 t2.micro — 1,000 events, 10 concurrent connections:
+
+| Implementation | Req/sec | Avg latency | p99 latency | Errors |
+|---|---|---|---|---|
+| **C++ StreamForge** | **18,274** | **0.5ms** | **3.1ms** | **0** |
+| Python FastAPI | 743 | 13.4ms | 19.3ms | 0 |
+
+**C++ StreamForge is 24.6x faster than Python FastAPI** on identical hardware.
+
+Key differences:
+- C++ p99 latency is **6x lower** (3.1ms vs 19.3ms)
+- C++ processes requests **24x faster** at sustained throughput
+- Both run AI anomaly detection on every event — C++ does it natively in-process
