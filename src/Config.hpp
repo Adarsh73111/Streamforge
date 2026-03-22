@@ -15,6 +15,8 @@ struct Config {
     int         port_query       = 9090;
     double      zscore_threshold = 3.0;
     int         port_dashboard    = 8090;
+    std::string node_id          = "node-1";
+    int         cluster_mode     = 0;
 
     static Config load(const std::string& path = "config.json") {
         Config cfg;
@@ -36,6 +38,8 @@ struct Config {
             if (j.contains("port_query"))        cfg.port_query       = j["port_query"];
             if (j.contains("zscore_threshold"))  cfg.zscore_threshold = j["zscore_threshold"];
             if (j.contains("port_dashboard"))    cfg.port_dashboard   = j["port_dashboard"];
+            if (j.contains("node_id"))           cfg.node_id          = j["node_id"];
+            if (j.contains("cluster_mode"))      cfg.cluster_mode     = j["cluster_mode"];
             std::cout << "[Config] Loaded config.json successfully" << std::endl;
         } catch (const std::exception& ex) {
             std::cout << "[Config] Parse error: " << ex.what() << ", using defaults" << std::endl;

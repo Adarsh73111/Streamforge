@@ -2,6 +2,8 @@
 #include "pipeline/StreamProcessor.hpp"
 #include "api/QueryServer.hpp"
 #include "api/DashboardServer.hpp"
+#include "cluster/NodeManager.hpp"
+#include "cluster/LeaderElection.hpp"
 #include "Config.hpp"
 #include <aws/core/Aws.h>
 #include "aws/S3Uploader.hpp"
@@ -40,11 +42,13 @@ int main(int argc, char* argv[]) {
                                                |___/
 )" << std::endl;
 
-    std::cout << "  Version    : v2.1" << std::endl;
+    std::cout << "  Version    : v3.0" << std::endl;
     std::cout << "  Mode       : " << (local_mode ? "LOCAL (no AWS)" : "AWS CLOUD") << std::endl;
     std::cout << "  Ingestion  : http://0.0.0.0:" << cfg.port_ingest << "/ingest" << std::endl;
     std::cout << "  Query API  : http://0.0.0.0:" << cfg.port_query  << "/health | /metrics | /anomalies | /query | /version" << std::endl;
     std::cout << "  Dashboard  : http://0.0.0.0:" << cfg.port_dashboard << "/" << std::endl;
+  std::cout << "  Node ID    : " << cfg.node_id << std::endl;
+  std::cout << "  Cluster    : " << (cfg.cluster_mode ? "DISTRIBUTED" : "SINGLE NODE") << std::endl;
     std::cout << "  Config     : region=" << cfg.region << " batch=" << cfg.batch_size << " workers=" << cfg.workers << std::endl;
     std::cout << "─────────────────────────────────────────────────────" << std::endl;
 
@@ -66,6 +70,10 @@ int main(int argc, char* argv[]) {
 
     std::vector<std::string> event_batch;
     std::mutex batch_mutex;
+
+    NodeManager      node(cfg.node_id, cfg.region);
+    LeaderElection   leader(cfg.node_id);
+    leader.elect();
 
     StreamProcessor processor(cfg.workers);
     DashboardServer dashboard(processor, cfg.port_dashboard);

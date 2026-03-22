@@ -8,5 +8,7 @@
   "port_ingest": 8080,
   "port_query": 9090,
   "zscore_threshold": 3.0,
-  "port_dashboard": 8090
+  "port_dashboard": 8090,
+  "node_id": "node-1",
+  "cluster_mode": 0
 }

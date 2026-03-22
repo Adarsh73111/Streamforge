@@ -224,6 +224,25 @@ private:
             return res;
         });
 
+        
+        CROW_ROUTE(app, "/nodes")
+        ([this]() {
+            std::ostringstream ss;
+            ss << "{"
+               << "\"cluster_mode\":\"single-node\","
+               << "\"nodes\":[{"
+               << "\"node_id\":\"node-1\","
+               << "\"status\":\"active\","
+               << "\"is_leader\":true,"
+               << "\"events_processed\":" << processor_.events_processed()
+               << "}],"
+               << "\"total_nodes\":1"
+               << "}";
+            auto res = crow::response(200, ss.str());
+            res.set_header("Content-Type", "application/json");
+            return res;
+        });
+
         std::cout << "StreamForge query API starting on port " << port_ << "\n";
         app.port(port_).run();
     }
