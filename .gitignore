@@ -2,3 +2,4 @@ build/
 *.o
 *.a
 config.json
+awscliv2.zip
