@@ -1,0 +1,15 @@
+{
+  "name": "StreamForge C++17",
+  "image": "mcr.microsoft.com/devcontainers/cpp:ubuntu-22.04",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y libboost-all-dev libssl-dev cmake build-essential",
+  "forwardPorts": [8080, 9090],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "twxs.cmake"
+      ]
+    }
+  }
+}
