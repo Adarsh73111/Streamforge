@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   streamforge:
     build: .
@@ -7,6 +6,7 @@ services:
     ports:
       - "8080:8080"
       - "9090:9090"
+      - "8090:8090"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9090/health"]

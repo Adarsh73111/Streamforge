@@ -37,6 +37,6 @@ COPY --from=builder /app/build/streamforge                 /usr/local/bin/stream
 
 RUN echo '/usr/local/lib64' > /etc/ld.so.conf.d/aws-sdk.conf && ldconfig
 
-EXPOSE 8080 9090
+EXPOSE 8080 9090 8090
 
 CMD ["/usr/local/bin/streamforge"]
