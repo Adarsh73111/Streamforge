@@ -1,6 +1,7 @@
 #include "ingestion/HttpServer.hpp"
 #include "pipeline/StreamProcessor.hpp"
 #include "api/QueryServer.hpp"
+#include "api/DashboardServer.hpp"
 #include "Config.hpp"
 #include <aws/core/Aws.h>
 #include "aws/S3Uploader.hpp"
@@ -39,10 +40,11 @@ int main(int argc, char* argv[]) {
                                                |___/
 )" << std::endl;
 
-    std::cout << "  Version    : v1.2" << std::endl;
+    std::cout << "  Version    : v2.0" << std::endl;
     std::cout << "  Mode       : " << (local_mode ? "LOCAL (no AWS)" : "AWS CLOUD") << std::endl;
     std::cout << "  Ingestion  : http://0.0.0.0:" << cfg.port_ingest << "/ingest" << std::endl;
     std::cout << "  Query API  : http://0.0.0.0:" << cfg.port_query  << "/health | /metrics | /anomalies | /query | /version" << std::endl;
+    std::cout << "  Dashboard  : http://0.0.0.0:" << cfg.port_dashboard << "/" << std::endl;
     std::cout << "  Config     : region=" << cfg.region << " batch=" << cfg.batch_size << " workers=" << cfg.workers << std::endl;
     std::cout << "─────────────────────────────────────────────────────" << std::endl;
 
@@ -66,6 +68,7 @@ int main(int argc, char* argv[]) {
     std::mutex batch_mutex;
 
     StreamProcessor processor(cfg.workers);
+    DashboardServer dashboard(processor, cfg.port_dashboard);
 
     processor.set_handler([&](const Event& e) {
         if (local_mode) return;
@@ -89,11 +92,14 @@ int main(int argc, char* argv[]) {
             std::string(r.ewma_vote   ? "E" : "-") +
             std::string(r.forest_vote ? "F" : "-");
 
+        dashboard.add_anomaly(e.metric_name, e.source, e.value, r.score, votes);
+
         if (!local_mode) {
             dynamo->write_anomaly(e.metric_name, e.value, r.score, votes);
             sns->notify(e.metric_name, e.value, r.score, votes, r.z_value, r.ewma_value);
         } else {
             std::cout << "[LOCAL] Anomaly: metric=" << e.metric_name
+                      << " source=" << e.source
                       << " value=" << e.value
                       << " votes=[" << votes << "]"
                       << " score=" << r.score << std::endl;
@@ -101,6 +107,7 @@ int main(int argc, char* argv[]) {
     });
 
     processor.start();
+    dashboard.start_async();
 
     QueryServer query_server(processor, cfg.region, cfg.port_query, local_mode);
     query_server.start_async();
