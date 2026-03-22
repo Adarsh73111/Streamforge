@@ -47,6 +47,18 @@ private:
             return res;
         });
 
+                CROW_ROUTE(app, "/version")
+        ([this]() {
+            std::string json = std::string("{") +
+                "\"version\":\"1.1\"," +
+                "\"build\":\"C++17\"," +
+                "\"mode\":\"" + (local_mode_ ? "local" : "aws") + "\"" +
+                "}";
+            auto res = crow::response(200, json);
+            res.set_header("Content-Type", "application/json");
+            return res;
+        });
+
         CROW_ROUTE(app, "/metrics")
         ([this]() {
             std::ostringstream ss;

@@ -1,0 +1,11 @@
+{
+  "region": "ap-south-1",
+  "s3_bucket": "streamforge-events-adarsh",
+  "sns_arn": "arn:aws:sns:ap-south-1:XXXXXXXXXXXX:StreamForgeAlerts",
+  "batch_size": 20,
+  "flush_secs": 30,
+  "workers": 4,
+  "port_ingest": 8080,
+  "port_query": 9090,
+  "zscore_threshold": 3.0
+}

@@ -1,6 +1,7 @@
 #include "ingestion/HttpServer.hpp"
 #include "pipeline/StreamProcessor.hpp"
 #include "api/QueryServer.hpp"
+#include "Config.hpp"
 #include <aws/core/Aws.h>
 #include "aws/S3Uploader.hpp"
 #include "aws/DynamoWriter.hpp"
@@ -22,11 +23,12 @@ int main(int argc, char* argv[]) {
     std::signal(SIGINT,  signal_handler);
     std::signal(SIGTERM, signal_handler);
 
-    // ── Local mode flag ───────────────────────────────────────────────────
     bool local_mode = false;
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--local") local_mode = true;
     }
+
+    Config cfg = Config::load("config.json");
 
     std::cout << R"(
   ____  _                      _____
@@ -37,30 +39,24 @@ int main(int argc, char* argv[]) {
                                                |___/
 )" << std::endl;
 
-    std::cout << "  Version    : v1.0" << std::endl;
+    std::cout << "  Version    : v1.1" << std::endl;
     std::cout << "  Mode       : " << (local_mode ? "LOCAL (no AWS)" : "AWS CLOUD") << std::endl;
-    std::cout << "  Ingestion  : http://0.0.0.0:8080/ingest" << std::endl;
-    std::cout << "  Query API  : http://0.0.0.0:9090/health | /metrics | /anomalies | /query" << std::endl;
+    std::cout << "  Ingestion  : http://0.0.0.0:" << cfg.port_ingest << "/ingest" << std::endl;
+    std::cout << "  Query API  : http://0.0.0.0:" << cfg.port_query  << "/health | /metrics | /anomalies | /query | /version" << std::endl;
+    std::cout << "  Config     : region=" << cfg.region << " batch=" << cfg.batch_size << " workers=" << cfg.workers << std::endl;
     std::cout << "─────────────────────────────────────────────────────" << std::endl;
 
-    const std::string REGION    = "ap-south-1";
-    const std::string S3_BUCKET = "streamforge-events-adarsh";
-    const std::string SNS_ARN   =
-        "arn:aws:sns:ap-south-1:318370043798:StreamForgeAlerts";
-
-    // ── AWS SDK init (skip in local mode) ────────────────────────────────
     Aws::SDKOptions options;
     if (!local_mode) Aws::InitAPI(options);
 
-    // ── AWS components (null in local mode) ──────────────────────────────
-    std::unique_ptr<S3Uploader>  s3;
+    std::unique_ptr<S3Uploader>   s3;
     std::unique_ptr<DynamoWriter> dynamo;
     std::unique_ptr<SNSNotifier>  sns;
 
     if (!local_mode) {
-        s3     = std::make_unique<S3Uploader>(S3_BUCKET, REGION);
-        dynamo = std::make_unique<DynamoWriter>(REGION);
-        sns    = std::make_unique<SNSNotifier>(SNS_ARN, REGION);
+        s3     = std::make_unique<S3Uploader>(cfg.s3_bucket, cfg.region);
+        dynamo = std::make_unique<DynamoWriter>(cfg.region);
+        sns    = std::make_unique<SNSNotifier>(cfg.sns_arn, cfg.region);
         std::cout << "[AWS] S3 / DynamoDB / SNS clients initialised" << std::endl;
     } else {
         std::cout << "[LOCAL] AWS disabled — pipeline + AI + API fully active" << std::endl;
@@ -68,26 +64,23 @@ int main(int argc, char* argv[]) {
 
     std::vector<std::string> event_batch;
     std::mutex batch_mutex;
-    const int BATCH_SIZE = 20;
 
-    StreamProcessor processor(4);
+    StreamProcessor processor(cfg.workers);
 
-    // ── Normal event handler ──────────────────────────────────────────────
     processor.set_handler([&](const Event& e) {
         if (local_mode) return;
         std::string record = "{\"source\":\"" + e.source +
-            "\",\"metric\":\"" + e.metric_name +
-            "\",\"value\":"    + std::to_string(e.value) +
-            ",\"ts\":"         + std::to_string(e.timestamp) + "}";
+            "\",\"metric\":\""  + e.metric_name +
+            "\",\"value\":"     + std::to_string(e.value) +
+            ",\"ts\":"          + std::to_string(e.timestamp) + "}";
         std::lock_guard<std::mutex> lock(batch_mutex);
         event_batch.push_back(record);
-        if ((int)event_batch.size() >= BATCH_SIZE) {
+        if ((int)event_batch.size() >= cfg.batch_size) {
             s3->upload_batch(event_batch);
             event_batch.clear();
         }
     });
 
-    // ── Anomaly handler ───────────────────────────────────────────────────
     processor.set_anomaly_handler([&](const AnomalyEvent& ae) {
         const auto& e = ae.event;
         const auto& r = ae.result;
@@ -109,22 +102,24 @@ int main(int argc, char* argv[]) {
 
     processor.start();
 
-    QueryServer query_server(processor, REGION, 9090, local_mode);
+    QueryServer query_server(processor, cfg.region, cfg.port_query, local_mode);
     query_server.start_async();
 
-    HttpServer server(processor, 8080);
+    HttpServer server(processor, cfg.port_ingest);
     server.start();
 
-    // ── Shutdown ──────────────────────────────────────────────────────────
+    std::cout << "[StreamForge] Flushing buffers..." << std::endl;
     if (!local_mode) {
         std::lock_guard<std::mutex> lock(batch_mutex);
         if (!event_batch.empty()) {
             s3->upload_batch(event_batch);
             event_batch.clear();
+            std::cout << "[StreamForge] S3 buffer flushed." << std::endl;
         }
         Aws::ShutdownAPI(options);
     }
 
     processor.stop();
+    std::cout << "[StreamForge] Shutdown complete." << std::endl;
     return 0;
 }
