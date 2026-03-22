@@ -6,7 +6,7 @@
 
 struct MetricConfig {
     double threshold    = 3.0;
-    int    cooldown_secs = 60;
+    int    cooldown_secs = 0;
     long long last_alert = 0;
 };
 
@@ -34,7 +34,7 @@ public:
         auto& cfg = configs_[metric];
         auto now = std::chrono::duration_cast<std::chrono::seconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
-        if (now - cfg.last_alert >= cfg.cooldown_secs) {
+        if (cfg.cooldown_secs == 0 || now - cfg.last_alert >= cfg.cooldown_secs) {
             cfg.last_alert = now;
             return true;
         }
