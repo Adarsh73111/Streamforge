@@ -174,6 +174,56 @@ private:
             return res;
         });
 
+        
+        CROW_ROUTE(app, "/config")
+        ([this]() {
+            auto all = processor_.get_detector_thresholds();
+            std::ostringstream ss;
+            ss << "{\"configs\":[";
+            bool first = true;
+            for (auto& kv : all) {
+                if (!first) ss << ",";
+                ss << "{"
+                   << "\"metric\":\"" << kv.first << "\","
+                   << "\"threshold\":" << kv.second.threshold << ","
+                   << "\"cooldown_secs\":" << kv.second.cooldown_secs
+                   << "}";
+                first = false;
+            }
+            ss << "]}";
+            auto res = crow::response(200, ss.str());
+            res.set_header("Content-Type", "application/json");
+            return res;
+        });
+
+        CROW_ROUTE(app, "/config").methods("POST"_method)
+        ([this](const crow::request& req) {
+            auto metric    = req.url_params.get("metric")   ? req.url_params.get("metric")   : "";
+            auto threshold = req.url_params.get("threshold")? req.url_params.get("threshold"): "3.0";
+            auto cooldown  = req.url_params.get("cooldown") ? req.url_params.get("cooldown") : "60";
+            if (std::string(metric).empty()) {
+                auto res = crow::response(400, "{\"error\":\"metric required\"}");
+                res.set_header("Content-Type", "application/json");
+                return res;
+            }
+            processor_.set_metric_threshold(metric, std::stod(threshold), std::stoi(cooldown));
+            auto res = crow::response(200,
+                "{\"status\":\"ok\",\"metric\":\"" + std::string(metric) +
+                "\",\"threshold\":" + std::string(threshold) +
+                ",\"cooldown_secs\":" + std::string(cooldown) + "}");
+            res.set_header("Content-Type", "application/json");
+            return res;
+        });
+
+        CROW_ROUTE(app, "/config/<string>").methods("DELETE"_method)
+        ([this](const std::string& metric) {
+            processor_.reset_metric_threshold(metric);
+            auto res = crow::response(200,
+                "{\"status\":\"ok\",\"metric\":\"" + metric + "\",\"reset\":true}");
+            res.set_header("Content-Type", "application/json");
+            return res;
+        });
+
         std::cout << "StreamForge query API starting on port " << port_ << "\n";
         app.port(port_).run();
     }

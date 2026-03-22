@@ -1,6 +1,7 @@
 #pragma once
 #include "../ingestion/RingBuffer.hpp"
 #include "../ai/AnomalyDetector.hpp"
+#include "../ai/ThresholdManager.hpp"
 #include "ThreadPool.hpp"
 #include <string>
 #include <functional>
@@ -104,6 +105,18 @@ public:
         auto it = metric_sources_.find(metric);
         if (it == metric_sources_.end()) return {};
         return std::vector<std::string>(it->second.begin(), it->second.end());
+    }
+
+    void set_metric_threshold(const std::string& metric, double threshold, int cooldown) {
+        detector_.thresholds().set(metric, threshold, cooldown);
+    }
+
+    void reset_metric_threshold(const std::string& metric) {
+        detector_.thresholds().reset(metric);
+    }
+
+    std::map<std::string, MetricConfig> get_detector_thresholds() {
+        return detector_.thresholds().get_all();
     }
 
     std::size_t events_processed()   const { return events_processed_; }

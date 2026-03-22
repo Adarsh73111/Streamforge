@@ -40,7 +40,7 @@ int main(int argc, char* argv[]) {
                                                |___/
 )" << std::endl;
 
-    std::cout << "  Version    : v2.0" << std::endl;
+    std::cout << "  Version    : v2.1" << std::endl;
     std::cout << "  Mode       : " << (local_mode ? "LOCAL (no AWS)" : "AWS CLOUD") << std::endl;
     std::cout << "  Ingestion  : http://0.0.0.0:" << cfg.port_ingest << "/ingest" << std::endl;
     std::cout << "  Query API  : http://0.0.0.0:" << cfg.port_query  << "/health | /metrics | /anomalies | /query | /version" << std::endl;

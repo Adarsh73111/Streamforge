@@ -2,6 +2,7 @@
 #include "ZScoreDetector.hpp"
 #include "EWMADetector.hpp"
 #include "IsolationForest.hpp"
+#include "ThresholdManager.hpp"
 #include <string>
 #include <sstream>
 
@@ -16,7 +17,6 @@ public:
         double z_value;
         double ewma_value;
         double forest_score;
-
         std::string summary() const {
             std::ostringstream ss;
             ss << "anomaly=" << (is_anomaly ? "YES" : "NO")
@@ -39,6 +39,11 @@ public:
           forest_(50, 32, 256) {}
 
     Result evaluate(const std::string& metric_key, double value) {
+        // ── Apply per-metric threshold ────────────────────────────────
+        std::string base_metric = metric_key.substr(0, metric_key.find(':'));
+        double threshold = thresholds_.get_threshold(base_metric);
+        zscore_.set_threshold(threshold);
+
         auto z = zscore_.evaluate(metric_key, value);
         auto e = ewma_.evaluate(metric_key, value);
         auto f = forest_.evaluate(metric_key, value);
@@ -51,8 +56,15 @@ public:
                         e.deviation / 10.0 +
                         f.score) / 3.0;
 
+        bool is_anomaly = votes >= 2;
+
+        // ── Apply cooldown per metric ─────────────────────────────────
+        if (is_anomaly && !thresholds_.cooldown_ok(base_metric)) {
+            is_anomaly = false;
+        }
+
         return {
-            votes >= 2,
+            is_anomaly,
             score,
             z.is_anomaly,
             e.is_anomaly,
@@ -63,8 +75,11 @@ public:
         };
     }
 
+    ThresholdManager& thresholds() { return thresholds_; }
+
 private:
-    ZScoreDetector  zscore_;
-    EWMADetector    ewma_;
-    IsolationForest forest_;
+    ZScoreDetector   zscore_;
+    EWMADetector     ewma_;
+    IsolationForest  forest_;
+    ThresholdManager thresholds_;
 };
