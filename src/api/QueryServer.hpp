@@ -76,6 +76,27 @@ private:
             return res;
         });
 
+                CROW_ROUTE(app, "/metrics/list")
+        ([this]() {
+            auto metrics = processor_.get_active_metrics();
+            std::ostringstream ss;
+            ss << "{\"metrics\":[";
+            for (size_t i = 0; i < metrics.size(); i++) {
+                auto sources = processor_.get_sources_for_metric(metrics[i]);
+                ss << "{\"name\":\"" << metrics[i] << "\",\"sources\":[";
+                for (size_t j = 0; j < sources.size(); j++) {
+                    ss << "\"" << sources[j] << "\"";
+                    if (j + 1 < sources.size()) ss << ",";
+                }
+                ss << "]}";
+                if (i + 1 < metrics.size()) ss << ",";
+            }
+            ss << "],\"total\":" << metrics.size() << "}";
+            auto res = crow::response(200, ss.str());
+            res.set_header("Content-Type", "application/json");
+            return res;
+        });
+
         CROW_ROUTE(app, "/anomalies")
         ([this]() {
             if (local_mode_) {

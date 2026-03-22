@@ -8,6 +8,10 @@
 #include <thread>
 #include <chrono>
 #include <iostream>
+#include <map>
+#include <set>
+#include <mutex>
+#include <vector>
 
 struct Event {
     std::string source;
@@ -52,11 +56,23 @@ public:
                 auto event = buffer_.pop();
                 if (event.has_value()) {
                     pool_.enqueue([this, e = std::move(event.value())]() {
-                        auto ai_result = detector_.evaluate(e.metric_name, e.value);
+                        // ── Track active metrics + sources ──────────────
+                        {
+                            std::lock_guard<std::mutex> lock(metrics_mutex_);
+                            active_metrics_.insert(e.metric_name);
+                            metric_sources_[e.metric_name].insert(e.source);
+                        }
+
+                        // ── Per-metric AI detection ──────────────────────
+                        // Key = "metric_name:source" for full isolation
+                        std::string key = e.metric_name + ":" + e.source;
+                        auto ai_result = detector_.evaluate(key, e.value);
+
                         if (ai_result.is_anomaly) {
                             anomalies_detected_++;
                             if (anomaly_handler_) anomaly_handler_({e, ai_result});
                             std::cout << "[ANOMALY] metric=" << e.metric_name
+                                      << " source=" << e.source
                                       << " value=" << e.value
                                       << " " << ai_result.summary()
                                       << std::endl;
@@ -75,6 +91,19 @@ public:
         running_ = false;
         if (dispatcher_.joinable()) dispatcher_.join();
         pool_.shutdown();
+    }
+
+    // ── Metric tracking getters ──────────────────────────────────────────
+    std::vector<std::string> get_active_metrics() const {
+        std::lock_guard<std::mutex> lock(metrics_mutex_);
+        return std::vector<std::string>(active_metrics_.begin(), active_metrics_.end());
+    }
+
+    std::vector<std::string> get_sources_for_metric(const std::string& metric) const {
+        std::lock_guard<std::mutex> lock(metrics_mutex_);
+        auto it = metric_sources_.find(metric);
+        if (it == metric_sources_.end()) return {};
+        return std::vector<std::string>(it->second.begin(), it->second.end());
     }
 
     std::size_t events_processed()   const { return events_processed_; }
@@ -118,4 +147,9 @@ private:
     std::atomic<std::size_t> events_processed_;
     std::atomic<std::size_t> events_dropped_;
     std::atomic<std::size_t> anomalies_detected_;
+
+    // ── Multi-metric tracking ────────────────────────────────────────────
+    mutable std::mutex                            metrics_mutex_;
+    std::set<std::string>                         active_metrics_;
+    std::map<std::string, std::set<std::string>>  metric_sources_;
 };
