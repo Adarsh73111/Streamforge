@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/StreamForge-v2.0-0077b6?style=for-the-badge&logoColor=white" />
+<img src="https://img.shields.io/badge/StreamForge-v2.1-0077b6?style=for-the-badge&logoColor=white" />
 
 # StreamForge ⚡
 
